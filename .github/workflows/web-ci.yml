@@ -1,0 +1,44 @@
+name: web-ci
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  validate-web-runtime:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Proyecto_GitHub_Final
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: Proyecto_GitHub_Final/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Static checks
+        run: npm run ci:check
+
+      - name: Start server smoke test (web mode)
+        env:
+          ACCESS_CODE: estacionkusmedios
+          APP_RUNTIME: web
+          PORT: 3000
+        run: |
+          npm run start:web &
+          SERVER_PID=$!
+          sleep 3
+          curl -f http://127.0.0.1:3000/ > /dev/null
+          curl -f -X POST http://127.0.0.1:3000/api/access/validate \
+            -H 'Content-Type: application/json' \
+            -d '{"accessCode":"estacionkusmedios"}' > /dev/null
+          kill $SERVER_PID
