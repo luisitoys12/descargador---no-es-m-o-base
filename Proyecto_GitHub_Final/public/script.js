@@ -1,62 +1,107 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // --- Elements ---
+    const DEFAULT_API_BASE = window.__KUS_API_BASE__ || window.location.origin;
+    const STORAGE_KEY_SETTINGS = 'downloader_settings';
+    const STORAGE_KEY_HISTORY = 'downloader_history';
+
+    const appRoot = document.getElementById('appRoot');
+    const authOverlay = document.getElementById('authOverlay');
+    const accessCodeInput = document.getElementById('accessCodeInput');
+    const accessCodeBtn = document.getElementById('accessCodeBtn');
+    const authMessage = document.getElementById('authMessage');
+    const authApiBaseInput = document.getElementById('authApiBaseInput');
+    const authSaveApiBaseBtn = document.getElementById('authSaveApiBaseBtn');
+
     const downloadBtn = document.getElementById('downloadBtn');
     const folderBtn = document.getElementById('folderBtn');
     const folderPathText = document.getElementById('folderPathText');
     const autoDetectToggle = document.getElementById('autoDetectToggle');
     const statusMessage = document.getElementById('statusMessage');
-
-    // Hidden inputs maintained for logic
     const urlInput = document.getElementById('urlInput');
-    const playlistToggle = document.getElementById('playlistToggle'); // Always true logic
+    const openFolderBtn = document.getElementById('openFolderBtn');
+    const formatSpans = document.querySelectorAll('.pill-switch span');
 
-    // Preview Bar
     const infoPreview = document.getElementById('infoPreview');
     const infoTitle = document.getElementById('infoTitle');
     const infoCount = document.getElementById('infoCount');
     const confirmAddBtn = document.getElementById('confirmAddBtn');
     const cancelPreviewBtn = document.getElementById('cancelPreviewBtn');
 
-    // Queue Container
-    const queueList = document.getElementById('queueList');
+    const queueListDiv = document.getElementById('queueList');
+    const historyListDiv = document.getElementById('historyList');
     const pauseBtn = document.getElementById('pauseBtn');
     const resumeBtn = document.getElementById('resumeBtn');
     const cancelAllBtn = document.getElementById('cancelAllBtn');
-    const formatSpans = document.querySelectorAll('.pill-switch span');
-    let eventSource = null; // Defined in outer scope of DOMContentLoaded
+    const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+    const tabs = document.querySelectorAll('.tab');
 
-    // --- State Variables ---
+
+    const apiBaseInput = document.getElementById('apiBaseInput');
+    const saveApiBaseBtn = document.getElementById('saveApiBaseBtn');
+
+    function sanitizeBasePath(pathValue) {
+        const withLeadingSlash = pathValue.startsWith('/') ? pathValue : `/${pathValue}`;
+        return withLeadingSlash.replace(/\/+$/, '');
+    }
+
+    function normalizeApiBase(rawBase) {
+        const cleaned = (rawBase || '').trim();
+        if (!cleaned) return window.location.origin;
+
+        if (cleaned.startsWith('/')) {
+            return sanitizeBasePath(cleaned);
+        }
+
+        try {
+            const url = new URL(cleaned);
+            const pathname = url.pathname && url.pathname !== '/' ? sanitizeBasePath(url.pathname) : '';
+            return `${url.origin}${pathname}`;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function isGitHubPagesHost() {
+        return window.location.hostname.endsWith('github.io');
+    }
+
+    function getApiBase() {
+        return settings.apiBase || window.location.origin;
+    }
+
+    function setApiBase(rawBase) {
+        const normalized = normalizeApiBase(rawBase);
+        if (!normalized) return false;
+
+        settings.apiBase = normalized;
+        localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(settings));
+        if (apiBaseInput) apiBaseInput.value = normalized;
+        if (authApiBaseInput) authApiBaseInput.value = normalized;
+        return true;
+    }
+
+    function buildApiUrl(endpoint) {
+        const base = getApiBase().replace(/\/+$/, '');
+        const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+        return `${base}${normalizedEndpoint}`;
+    }
+
     let selectedDownloadPath = null;
     let selectedFormat = 'mp3';
     let isProcessingPreview = false;
     let lastClipboardText = '';
     let currentPreviewData = null;
-
-    // --- Persistence & History State ---
-    const STORAGE_KEY_SETTINGS = 'downloader_settings';
-    const STORAGE_KEY_HISTORY = 'downloader_history';
+    let eventSource = null;
     let history = JSON.parse(localStorage.getItem(STORAGE_KEY_HISTORY)) || [];
     let settings = JSON.parse(localStorage.getItem(STORAGE_KEY_SETTINGS)) || {
         path: null,
         format: 'mp3',
-        autoDetect: true
+        autoDetect: true,
+        accessCode: '',
+        apiBase: DEFAULT_API_BASE
     };
 
-    // Apply Saved Settings on Load
-    if (settings.path) {
-        selectedDownloadPath = settings.path;
-        folderPathText.textContent = truncatePath(settings.path);
-    }
-    if (settings.format) {
-        selectedFormat = settings.format;
-        formatSpans.forEach(s => {
-            if (s.textContent.trim().toLowerCase() === selectedFormat) s.classList.add('active');
-            else s.classList.remove('active');
-        });
-    }
-    autoDetectToggle.checked = settings.autoDetect;
+    setApiBase(settings.apiBase || DEFAULT_API_BASE);
 
-    // Save Settings Helper
     function saveSettings() {
         settings.path = selectedDownloadPath;
         settings.format = selectedFormat;
@@ -64,204 +109,282 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(settings));
     }
 
-    // --- Event Listeners for Persistence ---
-    autoDetectToggle.addEventListener('change', saveSettings);
+    function getAccessCode() {
+        return settings.accessCode || '';
+    }
 
-    // Format Switch Logic (Updated to save)
-    formatSpans.forEach(span => {
-        span.addEventListener('click', () => {
-            // Remove active from all
-            formatSpans.forEach(s => s.classList.remove('active'));
-            // Add to clicked
-            span.classList.add('active');
-            // Update state
-            selectedFormat = span.textContent.trim().toLowerCase();
-            saveSettings(); // Save!
+    async function apiFetch(endpoint, options = {}) {
+        const headers = {
+            'Content-Type': 'application/json',
+            'x-access-code': getAccessCode(),
+            ...(options.headers || {})
+        };
+
+        const response = await fetch(buildApiUrl(endpoint), {
+            ...options,
+            headers
         });
-    });
 
-    // --- Folder / Open Logic ---
-    const openFolderBtn = document.getElementById('openFolderBtn');
-
-    folderBtn.addEventListener('click', async () => {
-        try {
-            const response = await fetch('http://localhost:3000/api/choose-directory');
-            const data = await response.json();
-            if (data.path) {
-                selectedDownloadPath = data.path;
-                folderPathText.textContent = truncatePath(data.path);
-                saveSettings(); // Save!
-            }
-        } catch (e) { }
-    });
-
-    openFolderBtn.addEventListener('click', async (e) => {
-        e.stopPropagation(); // prevent triggering choose-directory
-        await fetch('http://localhost:3000/api/open-folder', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ path: selectedDownloadPath })
-        });
-    });
-
-    // --- Tabs Logic ---
-    const tabs = document.querySelectorAll('.tab');
-    const queueListDiv = document.getElementById('queueList');
-    const historyListDiv = document.getElementById('historyList');
-    const queueTools = [pauseBtn, resumeBtn, cancelAllBtn];
-    const historyTools = [document.getElementById('clearHistoryBtn')];
-
-    tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            tabs.forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-
-            const mode = tab.getAttribute('data-tab');
-            if (mode === 'queue') {
-                queueListDiv.classList.remove('hidden');
-                historyListDiv.classList.add('hidden');
-                queueTools.forEach(b => b && b.classList.remove('hidden'));
-                historyTools.forEach(b => b && b.classList.add('hidden'));
-            } else {
-                queueListDiv.classList.add('hidden');
-                historyListDiv.classList.remove('hidden');
-                queueTools.forEach(b => b && b.classList.add('hidden'));
-                historyTools.forEach(b => b && b.classList.remove('hidden'));
-                renderHistory();
-            }
-        });
-    });
-
-    document.getElementById('clearHistoryBtn').addEventListener('click', () => {
-        if (confirm('¿Borrar historial?')) {
-            history = [];
-            localStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(history));
-            renderHistory();
+        if (response.status === 401) {
+            lockApp('Código inválido. Vuelve a iniciar sesión.');
+            throw new Error('UNAUTHORIZED');
         }
-    });
+
+        return response;
+    }
+
+    function lockApp(message = 'Solo personal autorizado.') {
+        appRoot.classList.add('locked');
+        authOverlay.classList.remove('hidden');
+        authMessage.textContent = message;
+        if (eventSource) {
+            eventSource.close();
+            eventSource = null;
+        }
+    }
+
+    function unlockApp() {
+        appRoot.classList.remove('locked');
+        authOverlay.classList.add('hidden');
+        connectSSE();
+    }
+
+    async function validateAccessCode() {
+        const code = accessCodeInput.value.trim();
+        if (!code) {
+            authMessage.textContent = 'Ingresa un código.';
+            return;
+        }
+
+        if (isGitHubPagesHost() && getApiBase() === window.location.origin) {
+            authMessage.textContent = 'En GitHub Pages debes configurar primero la URL del backend (ej: https://tu-backend.com o /backend si aplica).';
+            return;
+        }
+
+        try {
+            const response = await fetch(buildApiUrl('/api/access/validate'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ accessCode: code })
+            });
+
+            if (!response.ok) {
+                if (response.status === 401) {
+                    authMessage.textContent = 'Código incorrecto.';
+                } else {
+                    authMessage.textContent = 'Backend respondió con error. Verifica la URL backend y que el servidor esté activo.';
+                }
+                return;
+            }
+
+            settings.accessCode = code;
+            localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(settings));
+            unlockApp();
+        } catch (error) {
+            authMessage.textContent = 'No se pudo conectar al backend. Revisa la URL backend.';
+        }
+    }
+
+    function truncatePath(filePath) {
+        if (!filePath) return 'Descargas';
+        if (filePath.length > 40) return `...${filePath.slice(-36)}`;
+        return filePath;
+    }
+
+    function showStatus(msg, type) {
+        statusMessage.textContent = msg;
+        statusMessage.className = `status-bar ${type}`;
+        statusMessage.classList.remove('hidden');
+    }
+
+    function closePreview() {
+        infoPreview.classList.add('hidden');
+        isProcessingPreview = false;
+        currentPreviewData = null;
+    }
 
     function renderHistory() {
         historyListDiv.innerHTML = '';
-        if (history.length === 0) {
+        if (!history.length) {
             historyListDiv.innerHTML = `<div class="empty-state"><i class="fa-solid fa-clock-rotate-left"></i><p>Sin historial</p></div>`;
             return;
         }
 
-        // Reverse to show newest first
         [...history].reverse().forEach(item => {
             const div = document.createElement('div');
             div.className = 'queue-item completed';
             div.innerHTML = `
-                 <div class="queue-header">
+                <div class="queue-header">
                     <span class="queue-title" title="${item.path || ''}">${item.title}</span>
                     <span class="queue-status completed">${item.format.toUpperCase()}</span>
                 </div>
-                <div style="font-size:0.75rem; color:#64748b; margin-top:2px;">
-                    ${new Date(item.date).toLocaleTimeString()} - ${new Date(item.date).toLocaleDateString()}
-                </div>
+                <div class="meta-row">${new Date(item.date).toLocaleString()}</div>
             `;
             historyListDiv.appendChild(div);
         });
     }
 
     function addToHistory(job) {
-        // job: { jobId, status, title, format, path }
-        const item = {
+        history.push({
             id: job.jobId,
             title: job.title,
             format: job.format,
             path: job.path,
             date: Date.now()
-        };
-        history.push(item);
-        // Limit history to 50 items
+        });
         if (history.length > 50) history.shift();
         localStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(history));
-
-        // If on history tab, refresh
         if (!historyListDiv.classList.contains('hidden')) renderHistory();
     }
 
+    function createItem(job, type) {
+        const div = document.createElement('div');
+        div.className = `queue-item ${type}`;
+        div.id = `job-${job.id}`;
+        const progress = Math.round(job.progress || 0);
 
-    // --- SSE & Queue Rendering ---
-    /* ... (Previous SSE code) ... */
+        div.innerHTML = `
+            <div class="queue-header">
+                <span class="queue-title" title="${job.title || ''}">${job.title || 'Procesando...'}</span>
+                <span class="queue-status ${job.status}">${job.status === 'downloading' ? `${progress}%` : job.status}</span>
+            </div>
+            ${type === 'active' ? `<div class="progress-container"><div class="progress-bar" style="width:${progress}%"></div></div>` : ''}
+        `;
+        return div;
+    }
+
+    function updateProgress({ jobId, progress }) {
+        const el = document.getElementById(`job-${jobId}`);
+        if (!el) return;
+
+        const bar = el.querySelector('.progress-bar');
+        const stat = el.querySelector('.queue-status');
+        if (bar) bar.style.width = `${progress}%`;
+        if (stat) stat.textContent = `${Math.round(progress)}%`;
+    }
+
+    function renderQueue(state) {
+        const { active, waiting, isPaused } = state;
+        const all = [...active, ...waiting];
+
+        if (!all.length) {
+            queueListDiv.innerHTML = `<div class="empty-state"><i class="fa-solid fa-music"></i><p>Listo para descargar</p></div>`;
+        } else {
+            queueListDiv.innerHTML = '';
+            active.forEach(job => queueListDiv.appendChild(createItem(job, 'active')));
+            waiting.forEach(job => queueListDiv.appendChild(createItem(job, 'waiting')));
+        }
+
+        pauseBtn.classList.toggle('hidden', isPaused);
+        resumeBtn.classList.toggle('hidden', !isPaused);
+    }
+
     function connectSSE() {
-        if (eventSource) return;
-        eventSource = new EventSource('http://localhost:3000/api/events');
+        if (eventSource || !getAccessCode()) return;
 
+        eventSource = new EventSource(`${buildApiUrl('/api/events')}?accessCode=${encodeURIComponent(getAccessCode())}`);
         eventSource.addEventListener('queueUpdate', (e) => renderQueue(JSON.parse(e.data)));
         eventSource.addEventListener('progress', (e) => updateProgress(JSON.parse(e.data)));
-
-        // Listen for completion to save history
-        eventSource.addEventListener('jobCompleted', (e) => {
-            addToHistory(JSON.parse(e.data));
-        });
-
-        // Listen for errors
+        eventSource.addEventListener('jobCompleted', (e) => addToHistory(JSON.parse(e.data)));
         eventSource.addEventListener('jobError', (e) => {
             const data = JSON.parse(e.data);
-            alert(`❌ Error al descargar "${data.title}":\n\n${data.error}`);
+            showStatus(`Error: ${data.title || ''}`, 'error');
+            alert(`❌ ${data.error}`);
         });
 
-        eventSource.onerror = () => { eventSource.close(); eventSource = null; setTimeout(connectSSE, 3000); };
-    }
-    connectSSE();
-
-    /* ... (Rest of renderQueue, createItem, updateProgress as before) ... */
-
-    if (navigator.clipboard) {
-        setInterval(async () => {
-            if (!autoDetectToggle.checked) return;
-            if (isProcessingPreview) return; // Don't interrupt if user is deciding
-
-            try {
-                const text = await navigator.clipboard.readText();
-                if (text && text !== lastClipboardText) {
-                    lastClipboardText = text;
-
-                    // Regex for YouTube
-                    const ytRegex = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+$/;
-                    if (ytRegex.test(text.trim())) {
-                        console.log("Clipboard detected:", text);
-                        urlInput.value = text.trim();
-                        // Trigger fetch info automatically
-                        fetchInfo(text.trim());
-                    }
-                }
-            } catch (err) {
-                // Clipboard read failed (focus issues?), ignore
-            }
-        }, 1500);
+        eventSource.onerror = () => {
+            eventSource.close();
+            eventSource = null;
+            setTimeout(connectSSE, 2500);
+        };
     }
 
-    // --- Button Actions ---
+    async function fetchInfo(url) {
+        isProcessingPreview = true;
+        showStatus('Analizando enlace...', 'info');
+
+        try {
+            const response = await apiFetch('/api/info', {
+                method: 'POST',
+                body: JSON.stringify({ url, accessCode: getAccessCode() })
+            });
+
+            if (!response.ok) throw new Error('INVALID_LINK');
+
+            const data = await response.json();
+            currentPreviewData = data;
+            infoPreview.classList.remove('hidden');
+            infoTitle.textContent = data.title;
+            infoCount.textContent = data.isPlaylist
+                ? `Playlist (${data.videoCount} elementos)`
+                : 'Elemento individual';
+            statusMessage.classList.add('hidden');
+        } catch (error) {
+            showStatus('No se pudo analizar el enlace', 'error');
+            isProcessingPreview = false;
+        }
+    }
+
+    async function addToQueue() {
+        if (!currentPreviewData) return;
+
+        const items = currentPreviewData.entries.map(entry => ({
+            title: entry.title,
+            url: entry.url
+        }));
+
+        try {
+            const response = await apiFetch('/api/queue/add', {
+                method: 'POST',
+                body: JSON.stringify({
+                    accessCode: getAccessCode(),
+                    items,
+                    downloadPath: selectedDownloadPath,
+                    playlistTitle: currentPreviewData.isPlaylist ? currentPreviewData.title : null,
+                    format: selectedFormat
+                })
+            });
+
+            if (!response.ok) throw new Error('QUEUE_ERROR');
+
+            const result = await response.json();
+            showStatus(`Añadido: ${result.count} descarga(s)`, 'success');
+            setTimeout(() => statusMessage.classList.add('hidden'), 3000);
+        } catch (error) {
+            showStatus('Error al agregar a la cola', 'error');
+        }
+    }
+
+    async function sendAction(action) {
+        await apiFetch('/api/queue/action', {
+            method: 'POST',
+            body: JSON.stringify({ action, accessCode: getAccessCode() })
+        });
+    }
 
     downloadBtn.addEventListener('click', async () => {
-        // Priority: Manual Input > Clipboard
-        let inputValue = urlInput.value.trim();
-
+        const inputValue = urlInput.value.trim();
         if (inputValue) {
-            // Use manual input
             fetchInfo(inputValue);
-        } else {
-            // Try clipboard
-            try {
-                const text = await navigator.clipboard.readText();
-                if (text) {
-                    urlInput.value = text.trim();
-                    fetchInfo(text.trim());
-                    lastClipboardText = text;
-                } else {
-                    showStatus('Ingresa un enlace o copia uno', 'error');
-                }
-            } catch (e) {
-                showStatus('Ingresa un enlace manualmente', 'error');
+            return;
+        }
+
+        try {
+            const text = await navigator.clipboard.readText();
+            if (!text) {
+                showStatus('Ingresa o copia un enlace', 'error');
+                return;
             }
+            urlInput.value = text.trim();
+            fetchInfo(text.trim());
+            lastClipboardText = text;
+        } catch {
+            showStatus('No se pudo leer el portapapeles', 'error');
         }
     });
 
-    confirmAddBtn.addEventListener('click', () => {
-        addToQueue();
+    confirmAddBtn.addEventListener('click', async () => {
+        await addToQueue();
         closePreview();
     });
 
@@ -272,180 +395,152 @@ document.addEventListener('DOMContentLoaded', () => {
 
     folderBtn.addEventListener('click', async () => {
         try {
-            const response = await fetch('http://localhost:3000/api/choose-directory');
+            const response = await apiFetch('/api/choose-directory', {
+                method: 'GET',
+                headers: { 'x-access-code': getAccessCode() }
+            });
             const data = await response.json();
+            if (!response.ok) {
+                showStatus(data.error || 'No se pudo seleccionar carpeta', 'error');
+                return;
+            }
+
             if (data.path) {
                 selectedDownloadPath = data.path;
                 folderPathText.textContent = truncatePath(data.path);
+                saveSettings();
             }
-        } catch (e) { }
+        } catch {
+            showStatus('No se pudo seleccionar carpeta', 'error');
+        }
     });
 
-    function truncatePath(path) {
-        if (path.length > 25) return '...' + path.slice(-22);
-        return path;
-    }
-
-    // --- Logic: Info & Queue ---
-
-    async function fetchInfo(url) {
-        isProcessingPreview = true;
-        showStatus('Analizando enlace...', 'info');
-
+    openFolderBtn.addEventListener('click', async (event) => {
+        event.stopPropagation();
         try {
-            const response = await fetch('http://localhost:3000/api/info', {
+            const response = await apiFetch('/api/open-folder', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url })
+                body: JSON.stringify({ path: selectedDownloadPath, accessCode: getAccessCode() })
             });
-
-            if (response.ok) {
+            if (!response.ok) {
                 const data = await response.json();
-                currentPreviewData = data;
-
-                // Show Preview Bar
-                infoPreview.classList.remove('hidden');
-                infoTitle.textContent = data.title;
-                infoCount.textContent = data.isPlaylist
-                    ? `Playlist (${data.videoCount} canciones)`
-                    : 'Video Individual';
-                statusMessage.classList.add('hidden'); // hide searching status
-
-            } else {
-                showStatus('Enlace no válido o privado', 'error');
-                isProcessingPreview = false;
+                showStatus(data.error || 'No se pudo abrir la carpeta', 'error');
             }
-        } catch (e) {
-            showStatus('Error de conexión', 'error');
-            isProcessingPreview = false;
+        } catch {
+            showStatus('No se pudo abrir la carpeta', 'error');
         }
-    }
+    });
 
-    function closePreview() {
-        infoPreview.classList.add('hidden');
-        isProcessingPreview = false;
-        currentPreviewData = null;
-    }
-
-    async function addToQueue() {
-        if (!currentPreviewData) return;
-
-        try {
-            let items = [];
-            let playlistTitle = null;
-
-            if (currentPreviewData.entries) {
-                items = currentPreviewData.entries.map(entry => ({
-                    title: entry.title,
-                    url: entry.url
-                }));
-                if (currentPreviewData.isPlaylist) playlistTitle = currentPreviewData.title;
-            } else {
-                items = [{ url: urlInput.value, title: currentPreviewData.title }];
-            }
-
-            const response = await fetch('http://localhost:3000/api/queue/add', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    items,
-                    downloadPath: selectedDownloadPath,
-                    playlistTitle,
-                    format: selectedFormat // Send 'mp3' or 'mp4'
-                })
-            });
-
-            if (response.ok) {
-                const resData = await response.json();
-                showStatus(`Añadido: ${resData.count} descargas`, 'success');
-                setTimeout(() => statusMessage.classList.add('hidden'), 3000);
-            }
-
-        } catch (e) { showStatus('Fallo al añadir', 'error'); }
-    }
-
-    function showStatus(msg, type) {
-        statusMessage.textContent = msg;
-        statusMessage.className = `status-bar ${type}`; // remove hidden
-        statusMessage.classList.remove('hidden');
-        if (type === 'info') statusMessage.style.background = '#0288d1';
-    }
-
-    // --- SSE & Queue Rendering (Same as before but simplified HTML) ---
-
-    function connectSSE() {
-        if (eventSource) return;
-        eventSource = new EventSource('http://localhost:3000/api/events');
-
-        eventSource.addEventListener('queueUpdate', (e) => renderQueue(JSON.parse(e.data)));
-        eventSource.addEventListener('progress', (e) => updateProgress(JSON.parse(e.data)));
-        eventSource.onerror = () => { eventSource.close(); eventSource = null; setTimeout(connectSSE, 3000); };
-    }
-    connectSSE();
-
-    function renderQueue(state) {
-        const { active, waiting, isPaused } = state;
-        const all = [...active, ...waiting];
-
-        if (all.length === 0) {
-            queueList.innerHTML = `<div class="empty-state"><i class="fa-solid fa-music"></i><p>Listo para descargar</p></div>`;
-            return;
-        }
-
-        queueList.innerHTML = '';
-        active.forEach(job => queueList.appendChild(createItem(job, 'active')));
-        waiting.forEach(job => queueList.appendChild(createItem(job, 'waiting')));
-
-        // Controls
-        if (isPaused) {
-            pauseBtn.classList.add('hidden');
-            resumeBtn.classList.remove('hidden');
-        } else {
-            pauseBtn.classList.remove('hidden');
-            resumeBtn.classList.add('hidden');
-        }
-    }
-
-    function createItem(job, type) {
-        const div = document.createElement('div');
-        div.className = `queue-item ${type}`;
-        div.id = `job-${job.id}`;
-
-        const progress = job.progress || 0;
-        const width = `${progress}%`;
-
-        div.innerHTML = `
-            <div class="queue-header">
-                <span class="queue-title" title="${job.title}">${job.title || 'Cargando...'}</span>
-                <span class="queue-status ${job.status}">${job.status === 'downloading' ? Math.round(progress) + '%' : job.status}</span>
-            </div>
-            ${type === 'active' ? `<div class="progress-container"><div class="progress-bar" style="width: ${width}"></div></div>` : ''}
-        `;
-        return div;
-    }
-
-    function updateProgress({ jobId, progress }) {
-        const el = document.getElementById(`job-${jobId}`);
-        if (el) {
-            const bar = el.querySelector('.progress-bar');
-            const stat = el.querySelector('.queue-status');
-            if (bar) bar.style.width = `${progress}%`;
-            if (stat) stat.innerText = `${Math.round(progress)}%`;
-        }
-    }
-
-    // --- Control Buttons Bindings ---
-    async function sendAction(action) {
-        await fetch('http://localhost:3000/api/queue/action', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action })
-        });
-    }
     pauseBtn.addEventListener('click', () => sendAction('pause'));
     resumeBtn.addEventListener('click', () => sendAction('resume'));
     cancelAllBtn.addEventListener('click', () => {
-        if (confirm('¿Borrar toda la cola?')) sendAction('cancel_all');
+        if (confirm('¿Cancelar toda la cola?')) sendAction('cancel_all');
     });
 
+    clearHistoryBtn.addEventListener('click', () => {
+        if (confirm('¿Borrar historial?')) {
+            history = [];
+            localStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(history));
+            renderHistory();
+        }
+    });
+
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            tabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            const mode = tab.getAttribute('data-tab');
+            const queueMode = mode === 'queue';
+
+            queueListDiv.classList.toggle('hidden', !queueMode);
+            historyListDiv.classList.toggle('hidden', queueMode);
+            pauseBtn.classList.toggle('hidden', !queueMode);
+            resumeBtn.classList.toggle('hidden', !queueMode || resumeBtn.classList.contains('hidden'));
+            cancelAllBtn.classList.toggle('hidden', !queueMode);
+            clearHistoryBtn.classList.toggle('hidden', queueMode);
+
+            if (!queueMode) renderHistory();
+        });
+    });
+
+    autoDetectToggle.addEventListener('change', saveSettings);
+
+    formatSpans.forEach(span => {
+        span.addEventListener('click', () => {
+            formatSpans.forEach(s => s.classList.remove('active'));
+            span.classList.add('active');
+            selectedFormat = span.dataset.format;
+            saveSettings();
+        });
+    });
+
+    if (navigator.clipboard) {
+        setInterval(async () => {
+            if (!autoDetectToggle.checked || isProcessingPreview || appRoot.classList.contains('locked')) return;
+
+            try {
+                const text = await navigator.clipboard.readText();
+                if (text && text !== lastClipboardText) {
+                    lastClipboardText = text;
+                    const ytRegex = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+$/;
+                    if (ytRegex.test(text.trim())) {
+                        urlInput.value = text.trim();
+                        fetchInfo(text.trim());
+                    }
+                }
+            } catch {
+                // Silent clipboard errors.
+            }
+        }, 1500);
+    }
+
+    if (settings.path) {
+        selectedDownloadPath = settings.path;
+        folderPathText.textContent = truncatePath(settings.path);
+    }
+
+    selectedFormat = settings.format || 'mp3';
+    formatSpans.forEach(span => {
+        span.classList.toggle('active', span.dataset.format === selectedFormat);
+    });
+    autoDetectToggle.checked = settings.autoDetect !== false;
+    if (apiBaseInput) apiBaseInput.value = getApiBase();
+    if (authApiBaseInput) authApiBaseInput.value = getApiBase();
+
+    function applyBackendFromInput(inputElement) {
+        const ok = setApiBase(inputElement.value);
+        if (!ok) {
+            authMessage.textContent = 'URL de backend inválida.';
+            showStatus('URL de backend inválida.', 'error');
+            return;
+        }
+
+        authMessage.textContent = `Backend configurado: ${getApiBase()}`;
+        showStatus(`Backend configurado: ${getApiBase()}`, 'success');
+        if (eventSource) {
+            eventSource.close();
+            eventSource = null;
+        }
+        connectSSE();
+    }
+
+    if (authSaveApiBaseBtn) {
+        authSaveApiBaseBtn.addEventListener('click', () => applyBackendFromInput(authApiBaseInput));
+    }
+
+    if (saveApiBaseBtn) {
+        saveApiBaseBtn.addEventListener('click', () => applyBackendFromInput(apiBaseInput));
+    }
+
+    accessCodeBtn.addEventListener('click', validateAccessCode);
+    accessCodeInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') validateAccessCode();
+    });
+
+    if (settings.accessCode) {
+        accessCodeInput.value = settings.accessCode;
+        validateAccessCode();
+    } else {
+        lockApp();
+    }
 });
