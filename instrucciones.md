@@ -1,51 +1,27 @@
 # instrucciones.md
 
 ## Cambios realizados en esta versión
-- Se configuró el proyecto para funcionar correctamente en **entorno web/cloud** (GitHub + despliegue externo):
-  - Backend ahora usa variables de entorno `PORT`, `HOST`, `ACCESS_CODE` y `APP_RUNTIME`.
-  - Se eliminó dependencia rígida a `localhost` en frontend usando `window.location.origin`.
-- Se añadió compatibilidad cross-platform para `yt-dlp` (`yt-dlp.exe` en Windows y `yt-dlp` en Linux).
-- Se robustecieron endpoints de carpeta para entorno web:
-  - `/api/choose-directory` y `/api/open-folder` devuelven error controlado en web/no-Windows.
-- Se añadió **pipeline de GitHub Actions** (`.github/workflows/web-ci.yml`) con:
-  - instalación de dependencias,
-  - checks de sintaxis,
-  - smoke test de servidor en modo web.
-- Se añadió infraestructura de contenedor:
-  - `Proyecto_GitHub_Final/Dockerfile`
-  - `Proyecto_GitHub_Final/.dockerignore`
-- Se actualizó `README.md` con guía de ejecución web y despliegue recomendado en servicios conectados a GitHub.
-- Se actualizaron scripts en `package.json`:
-  - `start:web`
-  - `ci:check`
+- Se corrigió el problema reportado en GitHub Actions (**Setup Node cache path unresolved**).
+- Se agregó `Proyecto_GitHub_Final/package-lock.json` para que:
+  - `npm ci` funcione de forma determinística en CI.
+  - `actions/setup-node` pueda resolver correctamente el `cache-dependency-path` configurado en `.github/workflows/web-ci.yml`.
+- Se validó nuevamente el flujo de instalación y checks en entorno limpio con `npm ci` + `npm run ci:check`.
 
 ## Requisitos o dependencias nuevas
-- No se agregaron nuevas librerías de npm.
-- Requisitos de ejecución web:
-  - Node.js 20+ (recomendado)
-  - Variables de entorno configuradas (al menos `ACCESS_CODE` en producción)
-- Requisitos para descargas reales:
-  - `yt-dlp`
-  - `ffmpeg`
+- No se agregaron nuevas dependencias de aplicación.
+- Se añadió lockfile de npm como artefacto de control de versiones:
+  - `Proyecto_GitHub_Final/package-lock.json`
 
 ## Guía paso a paso para probar la funcionalidad
 1. Abrir terminal en:
    - `/workspace/descargador---no-es-m-o-base/Proyecto_GitHub_Final`
-2. Instalar dependencias:
-   - `npm install`
-3. Ejecutar checks:
+2. Instalar dependencias de forma reproducible:
+   - `npm ci`
+3. Ejecutar validaciones de sintaxis:
    - `npm run ci:check`
-4. Iniciar en modo web:
+4. Ejecutar app en modo web:
    - `ACCESS_CODE=estacionkusmedios APP_RUNTIME=web npm run start:web`
 5. Abrir navegador:
    - `http://localhost:3000`
-6. Ingresar código privado:
-   - `estacionkusmedios`
-7. Validar flujo:
-   - Probar análisis de URL.
-   - Probar cola MP3/MP4.
-8. Verificar CI en GitHub:
-   - Revisar workflow `web-ci` en pestaña **Actions**.
-9. (Opcional) Probar contenedor local:
-   - `docker build -t kus-downloader ./Proyecto_GitHub_Final`
-   - `docker run -p 3000:3000 -e ACCESS_CODE=estacionkusmedios -e APP_RUNTIME=web kus-downloader`
+6. Verificar en GitHub Actions:
+   - workflow `web-ci` debe pasar sin warning de cache path no resuelto en `Setup Node`.
