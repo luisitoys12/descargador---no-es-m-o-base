@@ -1,29 +1,37 @@
 # instrucciones.md
 
 ## Cambios realizados en esta versión
-- Se actualizó el código privado de acceso web al nuevo valor solicitado:
-  - `ESTKUS-2026-PRIV-9X7F2A-KM4`
-- Se ajustó el valor por defecto en backend (`server.js`) para que el login y los endpoints protegidos funcionen con el nuevo código.
-- Se actualizaron los flujos de verificación automática en CI (`.github/workflows/web-ci.yml`) para validar el nuevo código en el smoke test.
-- Se actualizó la documentación operativa (`Proyecto_GitHub_Final/README.md`) con el nuevo código para pruebas locales.
+- Se corrigió el flujo de autenticación para evitar el bloqueo con mensaje: `No se pudo validar con el backend configurado`.
+- Se añadió configuración de backend directamente en la pantalla de login (overlay):
+  - campo `URL backend (obligatorio en GitHub Pages)`
+  - botón `Guardar backend`.
+- Se sincronizó la URL del backend entre el overlay de acceso y el panel principal para evitar configuraciones inconsistentes.
+- Se agregó detección explícita de GitHub Pages:
+  - si estás en `github.io` y no configuraste backend externo, se muestra un mensaje claro antes de validar código.
+- Se mejoraron mensajes de error de login para distinguir:
+  - código inválido (401),
+  - backend con error,
+  - falta de conectividad o URL incorrecta.
 
 ## Requisitos o dependencias nuevas
-- No se agregaron nuevas dependencias.
-- Se mantiene la arquitectura de seguridad basada en variable de entorno:
-  - `ACCESS_CODE` (si no se define, usa por defecto `ESTKUS-2026-PRIV-9X7F2A-KM4`).
+- No se agregaron dependencias nuevas.
+- Requisito operativo clave en GitHub Pages:
+  - Configurar la URL pública del backend antes de ingresar el código.
 
 ## Guía paso a paso para probar la funcionalidad
-1. Entrar al proyecto:
+1. Ir al proyecto:
    - `cd /workspace/descargador---no-es-m-o-base/Proyecto_GitHub_Final`
-2. Ejecutar checks de sintaxis:
+2. Ejecutar verificación de sintaxis:
    - `npm run ci:check`
-3. Iniciar la app en modo web con el nuevo código:
+3. Iniciar backend local:
    - `ACCESS_CODE=ESTKUS-2026-PRIV-9X7F2A-KM4 APP_RUNTIME=web npm run start:web`
-4. Abrir en navegador:
+4. Abrir app:
    - `http://localhost:3000`
-5. En la pantalla de acceso, ingresar exactamente:
+5. En login, confirmar backend:
+   - En local: `http://localhost:3000`
+   - En GitHub Pages: URL pública real del backend (Render/Railway/Fly).
+6. Presionar `Guardar backend`.
+7. Ingresar código:
    - `ESTKUS-2026-PRIV-9X7F2A-KM4`
-6. Validar API de acceso (opcional por terminal):
-   - `curl -X POST http://127.0.0.1:3000/api/access/validate -H 'Content-Type: application/json' -d '{"accessCode":"ESTKUS-2026-PRIV-9X7F2A-KM4"}'`
-7. Verificar resultado esperado:
-   - Respuesta `{"success":true,"message":"Acceso concedido"}`.
+8. Validar resultado:
+   - Debe desbloquear la app sin mostrar el error de backend.

@@ -8,6 +8,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const accessCodeInput = document.getElementById('accessCodeInput');
     const accessCodeBtn = document.getElementById('accessCodeBtn');
     const authMessage = document.getElementById('authMessage');
+    const authApiBaseInput = document.getElementById('authApiBaseInput');
+    const authSaveApiBaseBtn = document.getElementById('authSaveApiBaseBtn');
 
     const downloadBtn = document.getElementById('downloadBtn');
     const folderBtn = document.getElementById('folderBtn');
@@ -48,6 +50,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function isGitHubPagesHost() {
+        return window.location.hostname.endsWith('github.io');
+    }
+
     function getApiBase() {
         return settings.apiBase || window.location.origin;
     }
@@ -59,6 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
         settings.apiBase = normalized;
         localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(settings));
         if (apiBaseInput) apiBaseInput.value = normalized;
+        if (authApiBaseInput) authApiBaseInput.value = normalized;
         return true;
     }
 
@@ -137,6 +144,11 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        if (isGitHubPagesHost() && getApiBase() === window.location.origin) {
+            authMessage.textContent = 'En GitHub Pages debes configurar primero la URL del backend.';
+            return;
+        }
+
         try {
             const response = await fetch(buildApiUrl('/api/access/validate'), {
                 method: 'POST',
@@ -148,7 +160,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (response.status === 401) {
                     authMessage.textContent = 'Código incorrecto.';
                 } else {
-                    authMessage.textContent = 'No se pudo validar con el backend configurado.';
+                    authMessage.textContent = 'Backend respondió con error. Verifica la URL backend y que el servidor esté activo.';
                 }
                 return;
             }
@@ -481,22 +493,31 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     autoDetectToggle.checked = settings.autoDetect !== false;
     if (apiBaseInput) apiBaseInput.value = getApiBase();
+    if (authApiBaseInput) authApiBaseInput.value = getApiBase();
+
+    function applyBackendFromInput(inputElement) {
+        const ok = setApiBase(inputElement.value);
+        if (!ok) {
+            authMessage.textContent = 'URL de backend inválida.';
+            showStatus('URL de backend inválida.', 'error');
+            return;
+        }
+
+        authMessage.textContent = `Backend configurado: ${getApiBase()}`;
+        showStatus(`Backend configurado: ${getApiBase()}`, 'success');
+        if (eventSource) {
+            eventSource.close();
+            eventSource = null;
+        }
+        connectSSE();
+    }
+
+    if (authSaveApiBaseBtn) {
+        authSaveApiBaseBtn.addEventListener('click', () => applyBackendFromInput(authApiBaseInput));
+    }
 
     if (saveApiBaseBtn) {
-        saveApiBaseBtn.addEventListener('click', () => {
-            const ok = setApiBase(apiBaseInput.value);
-            if (!ok) {
-                showStatus('URL de backend inválida.', 'error');
-                return;
-            }
-
-            showStatus(`Backend configurado: ${getApiBase()}`, 'success');
-            if (eventSource) {
-                eventSource.close();
-                eventSource = null;
-            }
-            connectSSE();
-        });
+        saveApiBaseBtn.addEventListener('click', () => applyBackendFromInput(apiBaseInput));
     }
 
     accessCodeBtn.addEventListener('click', validateAccessCode);

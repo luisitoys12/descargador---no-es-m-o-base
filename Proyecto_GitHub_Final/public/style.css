@@ -435,6 +435,32 @@ body {
     font-weight: 700;
 }
 
+
+.auth-backend-row {
+    display: flex;
+    gap: 10px;
+    margin: 12px 0 10px;
+}
+
+.auth-backend-row input {
+    flex: 1;
+    padding: 12px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: #0f1a2f;
+    color: var(--text);
+}
+
+.auth-backend-row button {
+    border: 1px solid var(--border);
+    background: #1a2d52;
+    color: var(--text);
+    border-radius: 10px;
+    padding: 0 12px;
+    cursor: pointer;
+    font-weight: 700;
+}
+
 .auth-input-row {
     display: flex;
     gap: 10px;
@@ -463,7 +489,8 @@ body {
 
 @media (max-width: 900px) {
     .api-config-row,
-    .manual-input-row {
+    .manual-input-row,
+    .auth-backend-row {
         flex-direction: column;
     }
 
