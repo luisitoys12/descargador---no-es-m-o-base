@@ -1,57 +1,54 @@
-# Youtube Downloader Pro 🎥
+# Estación KUS Medios Downloader
 
-Aplicación de escritorio moderna para descargar videos y playlists de YouTube en formato MP3 y MP4.
+Descargador privado (audio MP3 + video MP4) con interfaz web profesional y control de acceso por código.
 
-![Screenshot](screenshot_placeholder.png)
+## Acceso privado
+- Código por defecto: `ESTKUS-2026-PRIV-9X7F2A-KM4`
+- Recomendado en producción: configurar `ACCESS_CODE` como secreto/variable de entorno.
 
-## 🚀 Características
-
-*   **Detección Inteligente**: Detecta enlaces del portapapeles automáticamente.
-*   **Playlists Completas**: Descarga listas de reproducción enteras con un clic.
-*   **Formatos**: Soporte para MP3 (Audio HQ) y MP4 (Video H.264).
-*   **Cola de Descargas**: Gestión eficiente con pausa/reanudar.
-*   **Historial**: Registro local de descargas.
-*   **Diseño Premium**: Interfaz moderna y oscura construida con CSS puro.
-
-## 🛠️ Tecnologías
-
-*   **Electron**: Framework de escritorio.
-*   **Node.js & Express**: Backend local para gestión de procesos.
-*   **yt-dlp**: Motor de descarga (debe incluirse en `bin/`).
-*   **FFmpeg**: Motor de conversión (debe incluirse en `bin/`).
-
-## 📦 Instalación (Desarrollo)
-
-1.  **Clonar el repositorio**:
-    ```bash
-    git clone https://github.com/tu-usuario/youtube-downloader-pro.git
-    cd youtube-downloader-pro
-    ```
-
-2.  **Instalar dependencias**:
-    ```bash
-    npm install
-    ```
-
-3.  **Configurar Binarios**:
-    *   Crea una carpeta llamada `bin` en la raíz.
-    *   Descarga `yt-dlp.exe` y colócalo en `bin/`.
-    *   Descarga `ffmpeg.exe` y `ffprobe.exe` y colócalos en `bin/`.
-
-4.  **Ejecutar en modo desarrollo**:
-    ```bash
-    npm start
-    ```
-
-## 🔨 Compilación (Crear .exe)
-
-Para generar el instalador de Windows:
-
+## Ejecutar local en modo web
 ```bash
-npm run dist
+cd Proyecto_GitHub_Final
+npm install
+ACCESS_CODE=ESTKUS-2026-PRIV-9X7F2A-KM4 APP_RUNTIME=web npm run start:web
 ```
-El archivo de instalación aparecerá en la carpeta `dist/`.
+Abrir: `http://localhost:3000`
 
-## 📄 Licencia
+## Variables de entorno
+- `PORT`: puerto HTTP (default `3000`)
+- `HOST`: host bind (default `0.0.0.0`)
+- `ACCESS_CODE`: código privado requerido
+- `APP_RUNTIME`: usar `web` para entorno web/cloud
 
-Este proyecto está bajo la Licencia ISC.
+## Despliegue recomendado: Netlify + Backend Node
+Este repo ya quedó listo para Netlify con:
+- `netlify.toml` (publish + redirects)
+- `netlify/functions/backend-proxy.js` (proxy seguro hacia backend)
+
+### Flujo profesional (producción)
+1. Despliega backend Node (Render/Railway/Fly) usando `Proyecto_GitHub_Final/Dockerfile`.
+2. En backend define:
+   - `ACCESS_CODE=tu_codigo_privado`
+   - `APP_RUNTIME=web`
+3. Crea sitio en Netlify conectado a este repo.
+4. En Netlify configura:
+   - Build command: *(vacío)*
+   - Publish directory: `Proyecto_GitHub_Final/public`
+   - Variable de entorno: `BACKEND_ORIGIN=https://tu-backend-publico.com`
+5. Deploy.
+6. Abre tu dominio Netlify (`https://tu-sitio.netlify.app`) y entra con el código.
+
+### ¿Cómo funciona?
+- Frontend en Netlify usa `/backend` por defecto (solo en `*.netlify.app`).
+- Netlify redirige `/backend/*` a la función `backend-proxy`.
+- La función reenvía la petición al backend real usando `BACKEND_ORIGIN`.
+
+## CI / Validación
+Workflow: `.github/workflows/web-ci.yml`
+- `npm ci`
+- `npm run ci:check`
+- smoke test HTTP en modo web
+
+## Notas importantes
+- En entorno web se deshabilita seleccionar carpeta local y “abrir carpeta” (funciones de escritorio/Windows).
+- Mantén `yt-dlp` y `ffmpeg` disponibles en imagen/servidor si usarás descargas reales.
