@@ -6,7 +6,9 @@
     "scripts": {
         "start": "electron .",
         "server": "node server.js",
-        "dist": "electron-builder"
+        "dist": "electron-builder",
+        "start:web": "node server.js",
+        "ci:check": "node --check server.js && node --check public/script.js"
     },
     "build": {
         "appId": "com.downloader.pro",
