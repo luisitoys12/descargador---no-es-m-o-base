@@ -236,6 +236,32 @@ body {
     transform: translateX(16px);
 }
 
+
+.api-config-row {
+    margin-top: 14px;
+    display: flex;
+    gap: 10px;
+}
+
+#apiBaseInput {
+    flex: 1;
+    padding: 12px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: #0f1a2f;
+    color: var(--text);
+}
+
+.btn-secondary {
+    border: 1px solid var(--border);
+    background: #1a2d52;
+    color: var(--text);
+    border-radius: 12px;
+    font-weight: 700;
+    padding: 0 14px;
+    cursor: pointer;
+}
+
 .manual-input-row {
     margin-top: 16px;
     display: flex;
@@ -434,3 +460,15 @@ body {
 }
 
 .hidden { display: none !important; }
+
+@media (max-width: 900px) {
+    .api-config-row,
+    .manual-input-row {
+        flex-direction: column;
+    }
+
+    .btn-secondary,
+    .big-action-btn {
+        min-height: 44px;
+    }
+}

@@ -20,21 +20,28 @@ Abrir: `http://localhost:3000`
 - `ACCESS_CODE`: código privado requerido
 - `APP_RUNTIME`: usar `web` para entorno web/cloud
 
-## GitHub: entorno para correr desde web
-Este repo ya incluye:
-- **Workflow CI**: `.github/workflows/web-ci.yml`
-  - Instala dependencias
-  - Ejecuta checks de sintaxis
-  - Levanta servidor en modo web y hace smoke test HTTP
-- **Dockerfile** (`Proyecto_GitHub_Final/Dockerfile`) para desplegar en Render/Railway/Fly/Docker host.
+## GitHub Pages + Backend (nuevo)
+Este proyecto ahora publica automáticamente el frontend en GitHub Pages con `.github/workflows/deploy-pages.yml`.
 
-### Despliegue recomendado (Render o Railway)
-1. Conecta el repo de GitHub.
-2. Elige despliegue con Docker.
-3. Configura variables:
+### Importante
+GitHub Pages **solo sirve archivos estáticos**. Las descargas reales (API `/api/*`) requieren el servidor Node desplegado (Render/Railway/Fly/Docker).
+
+### Flujo recomendado
+1. Despliega el backend Node (Render/Railway/Fly) usando `Proyecto_GitHub_Final/Dockerfile`.
+2. Define en backend:
    - `ACCESS_CODE=tu_codigo_privado`
    - `APP_RUNTIME=web`
-4. Publica el servicio y abre la URL pública.
+3. Activa GitHub Pages en repo: **Settings → Pages → Source: GitHub Actions**.
+4. Haz push a `main` para ejecutar `deploy-pages`.
+5. Abre el link de GitHub Pages.
+6. En la app, en campo **URL backend**, pega la URL pública de tu backend y presiona **Guardar backend**.
+7. Ingresa el código privado y usa la app normalmente.
+
+## CI / Validación
+Workflow: `.github/workflows/web-ci.yml`
+- `npm ci`
+- `npm run ci:check`
+- smoke test HTTP en modo web
 
 ## Notas importantes
 - En entorno web se deshabilita seleccionar carpeta local y “abrir carpeta” (funciones de escritorio/Windows).

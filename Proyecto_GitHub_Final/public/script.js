@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const API_BASE = window.location.origin;
+    const DEFAULT_API_BASE = window.__KUS_API_BASE__ || window.location.origin;
     const STORAGE_KEY_SETTINGS = 'downloader_settings';
     const STORAGE_KEY_HISTORY = 'downloader_history';
 
@@ -32,6 +32,40 @@ document.addEventListener('DOMContentLoaded', () => {
     const clearHistoryBtn = document.getElementById('clearHistoryBtn');
     const tabs = document.querySelectorAll('.tab');
 
+
+    const apiBaseInput = document.getElementById('apiBaseInput');
+    const saveApiBaseBtn = document.getElementById('saveApiBaseBtn');
+
+    function normalizeApiBase(rawBase) {
+        const cleaned = (rawBase || '').trim();
+        if (!cleaned) return window.location.origin;
+
+        try {
+            const url = new URL(cleaned);
+            return url.origin;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function getApiBase() {
+        return settings.apiBase || window.location.origin;
+    }
+
+    function setApiBase(rawBase) {
+        const normalized = normalizeApiBase(rawBase);
+        if (!normalized) return false;
+
+        settings.apiBase = normalized;
+        localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(settings));
+        if (apiBaseInput) apiBaseInput.value = normalized;
+        return true;
+    }
+
+    function buildApiUrl(endpoint) {
+        return `${getApiBase()}${endpoint}`;
+    }
+
     let selectedDownloadPath = null;
     let selectedFormat = 'mp3';
     let isProcessingPreview = false;
@@ -43,8 +77,11 @@ document.addEventListener('DOMContentLoaded', () => {
         path: null,
         format: 'mp3',
         autoDetect: true,
-        accessCode: ''
+        accessCode: '',
+        apiBase: DEFAULT_API_BASE
     };
+
+    setApiBase(settings.apiBase || DEFAULT_API_BASE);
 
     function saveSettings() {
         settings.path = selectedDownloadPath;
@@ -64,7 +101,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ...(options.headers || {})
         };
 
-        const response = await fetch(`${API_BASE}${endpoint}`, {
+        const response = await fetch(buildApiUrl(endpoint), {
             ...options,
             headers
         });
@@ -101,7 +138,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
-            const response = await fetch(`${API_BASE}/api/access/validate`, {
+            const response = await fetch(buildApiUrl('/api/access/validate'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ accessCode: code })
@@ -217,7 +254,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function connectSSE() {
         if (eventSource || !getAccessCode()) return;
 
-        eventSource = new EventSource(`${API_BASE}/api/events?accessCode=${encodeURIComponent(getAccessCode())}`);
+        eventSource = new EventSource(`${buildApiUrl('/api/events')}?accessCode=${encodeURIComponent(getAccessCode())}`);
         eventSource.addEventListener('queueUpdate', (e) => renderQueue(JSON.parse(e.data)));
         eventSource.addEventListener('progress', (e) => updateProgress(JSON.parse(e.data)));
         eventSource.addEventListener('jobCompleted', (e) => addToHistory(JSON.parse(e.data)));
@@ -439,6 +476,24 @@ document.addEventListener('DOMContentLoaded', () => {
         span.classList.toggle('active', span.dataset.format === selectedFormat);
     });
     autoDetectToggle.checked = settings.autoDetect !== false;
+    if (apiBaseInput) apiBaseInput.value = getApiBase();
+
+    if (saveApiBaseBtn) {
+        saveApiBaseBtn.addEventListener('click', () => {
+            const ok = setApiBase(apiBaseInput.value);
+            if (!ok) {
+                showStatus('URL de backend inválida.', 'error');
+                return;
+            }
+
+            showStatus(`Backend configurado: ${getApiBase()}`, 'success');
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+            }
+            connectSSE();
+        });
+    }
 
     accessCodeBtn.addEventListener('click', validateAccessCode);
     accessCodeInput.addEventListener('keydown', (event) => {
