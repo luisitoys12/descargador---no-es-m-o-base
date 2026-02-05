@@ -145,7 +145,11 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             if (!response.ok) {
-                authMessage.textContent = 'Código incorrecto.';
+                if (response.status === 401) {
+                    authMessage.textContent = 'Código incorrecto.';
+                } else {
+                    authMessage.textContent = 'No se pudo validar con el backend configurado.';
+                }
                 return;
             }
 
@@ -153,7 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
             localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(settings));
             unlockApp();
         } catch (error) {
-            authMessage.textContent = 'No se pudo validar el código.';
+            authMessage.textContent = 'No se pudo conectar al backend. Revisa la URL backend.';
         }
     }
 

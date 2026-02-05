@@ -10,6 +10,12 @@ const app = express();
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || '0.0.0.0';
 const ACCESS_CODE = process.env.ACCESS_CODE || 'estacionkusmedios';
+
+function normalizeAccessCode(value) {
+    return String(value || '').trim().toLowerCase();
+}
+
+const NORMALIZED_ACCESS_CODE = normalizeAccessCode(ACCESS_CODE);
 const IS_WEB_RUNTIME = process.env.APP_RUNTIME === 'web' || process.env.NODE_ENV === 'production';
 
 app.use(cors());
@@ -48,7 +54,10 @@ function isAuthorizedRequest(req) {
     const headerCode = req.headers['x-access-code'];
     const bodyCode = req.body && req.body.accessCode;
     const queryCode = req.query && req.query.accessCode;
-    return headerCode === ACCESS_CODE || bodyCode === ACCESS_CODE || queryCode === ACCESS_CODE;
+
+    return [headerCode, bodyCode, queryCode].some((candidate) =>
+        normalizeAccessCode(candidate) === NORMALIZED_ACCESS_CODE
+    );
 }
 
 function requireAccessCode(req, res, next) {
@@ -63,7 +72,7 @@ function requireAccessCode(req, res, next) {
 
 app.post('/api/access/validate', (req, res) => {
     const { accessCode } = req.body || {};
-    if (accessCode === ACCESS_CODE) {
+    if (normalizeAccessCode(accessCode) === NORMALIZED_ACCESS_CODE) {
         return res.json({ success: true, message: 'Acceso concedido' });
     }
     return res.status(401).json({ success: false, error: 'Código incorrecto' });
