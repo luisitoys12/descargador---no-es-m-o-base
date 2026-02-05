@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const DEFAULT_API_BASE = window.__KUS_API_BASE__ || window.location.origin;
+    const DEFAULT_API_BASE = window.__KUS_API_BASE__ || (window.location.hostname.endsWith('netlify.app') ? '/backend' : window.location.origin);
     const STORAGE_KEY_SETTINGS = 'downloader_settings';
     const STORAGE_KEY_HISTORY = 'downloader_history';
 

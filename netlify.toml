@@ -1,0 +1,14 @@
+[build]
+  publish = "Proyecto_GitHub_Final/public"
+  functions = "netlify/functions"
+
+[[redirects]]
+  from = "/backend/*"
+  to = "/.netlify/functions/backend-proxy/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

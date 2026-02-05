@@ -20,30 +20,28 @@ Abrir: `http://localhost:3000`
 - `ACCESS_CODE`: código privado requerido
 - `APP_RUNTIME`: usar `web` para entorno web/cloud
 
-## GitHub Pages + Backend (nuevo)
-Este proyecto ahora publica automáticamente el frontend en GitHub Pages con `.github/workflows/deploy-pages.yml`.
+## Despliegue recomendado: Netlify + Backend Node
+Este repo ya quedó listo para Netlify con:
+- `netlify.toml` (publish + redirects)
+- `netlify/functions/backend-proxy.js` (proxy seguro hacia backend)
 
-### Importante
-GitHub Pages **solo sirve archivos estáticos**. Las descargas reales (API `/api/*`) requieren el servidor Node desplegado (Render/Railway/Fly/Docker).
-
-### Flujo recomendado
-1. Despliega el backend Node (Render/Railway/Fly) usando `Proyecto_GitHub_Final/Dockerfile`.
-2. Define en backend:
+### Flujo profesional (producción)
+1. Despliega backend Node (Render/Railway/Fly) usando `Proyecto_GitHub_Final/Dockerfile`.
+2. En backend define:
    - `ACCESS_CODE=tu_codigo_privado`
    - `APP_RUNTIME=web`
-3. Activa GitHub Pages en repo: **Settings → Pages → Source: GitHub Actions**.
-4. Haz push a `main` para ejecutar `deploy-pages`.
-5. Abre el link de GitHub Pages.
-6. En la app, en campo **URL backend**, pega la URL pública de tu backend y presiona **Guardar backend**.
-7. Ingresa el código privado y usa la app normalmente.
+3. Crea sitio en Netlify conectado a este repo.
+4. En Netlify configura:
+   - Build command: *(vacío)*
+   - Publish directory: `Proyecto_GitHub_Final/public`
+   - Variable de entorno: `BACKEND_ORIGIN=https://tu-backend-publico.com`
+5. Deploy.
+6. Abre tu dominio Netlify (`https://tu-sitio.netlify.app`) y entra con el código.
 
-
-### Configuración de backend en frontend
-Puedes configurar backend de 2 formas:
-- URL completa: `https://tu-backend.com`
-- Ruta relativa detrás de proxy/reverse proxy: `/backend`
-
-Con `/backend`, el frontend llamará rutas como `/backend/api/access/validate` y `/backend/api/events`.
+### ¿Cómo funciona?
+- Frontend en Netlify usa `/backend` por defecto (solo en `*.netlify.app`).
+- Netlify redirige `/backend/*` a la función `backend-proxy`.
+- La función reenvía la petición al backend real usando `BACKEND_ORIGIN`.
 
 ## CI / Validación
 Workflow: `.github/workflows/web-ci.yml`
