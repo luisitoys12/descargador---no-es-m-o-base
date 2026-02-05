@@ -38,13 +38,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const apiBaseInput = document.getElementById('apiBaseInput');
     const saveApiBaseBtn = document.getElementById('saveApiBaseBtn');
 
+    function sanitizeBasePath(pathValue) {
+        const withLeadingSlash = pathValue.startsWith('/') ? pathValue : `/${pathValue}`;
+        return withLeadingSlash.replace(/\/+$/, '');
+    }
+
     function normalizeApiBase(rawBase) {
         const cleaned = (rawBase || '').trim();
         if (!cleaned) return window.location.origin;
 
+        if (cleaned.startsWith('/')) {
+            return sanitizeBasePath(cleaned);
+        }
+
         try {
             const url = new URL(cleaned);
-            return url.origin;
+            const pathname = url.pathname && url.pathname !== '/' ? sanitizeBasePath(url.pathname) : '';
+            return `${url.origin}${pathname}`;
         } catch (error) {
             return null;
         }
@@ -70,7 +80,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function buildApiUrl(endpoint) {
-        return `${getApiBase()}${endpoint}`;
+        const base = getApiBase().replace(/\/+$/, '');
+        const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+        return `${base}${normalizedEndpoint}`;
     }
 
     let selectedDownloadPath = null;
@@ -145,7 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (isGitHubPagesHost() && getApiBase() === window.location.origin) {
-            authMessage.textContent = 'En GitHub Pages debes configurar primero la URL del backend.';
+            authMessage.textContent = 'En GitHub Pages debes configurar primero la URL del backend (ej: https://tu-backend.com o /backend si aplica).';
             return;
         }
 

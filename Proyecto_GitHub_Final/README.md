@@ -37,6 +37,14 @@ GitHub Pages **solo sirve archivos estáticos**. Las descargas reales (API `/api
 6. En la app, en campo **URL backend**, pega la URL pública de tu backend y presiona **Guardar backend**.
 7. Ingresa el código privado y usa la app normalmente.
 
+
+### Configuración de backend en frontend
+Puedes configurar backend de 2 formas:
+- URL completa: `https://tu-backend.com`
+- Ruta relativa detrás de proxy/reverse proxy: `/backend`
+
+Con `/backend`, el frontend llamará rutas como `/backend/api/access/validate` y `/backend/api/events`.
+
 ## CI / Validación
 Workflow: `.github/workflows/web-ci.yml`
 - `npm ci`
