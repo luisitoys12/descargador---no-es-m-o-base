@@ -30,7 +30,7 @@ jobs:
 
       - name: Start server smoke test (web mode)
         env:
-          ACCESS_CODE: estacionkusmedios
+          ACCESS_CODE: ESTKUS-2026-PRIV-9X7F2A-KM4
           APP_RUNTIME: web
           PORT: 3000
         run: |
@@ -40,5 +40,5 @@ jobs:
           curl -f http://127.0.0.1:3000/ > /dev/null
           curl -f -X POST http://127.0.0.1:3000/api/access/validate \
             -H 'Content-Type: application/json' \
-            -d '{"accessCode":"estacionkusmedios"}' > /dev/null
+            -d '{"accessCode":"ESTKUS-2026-PRIV-9X7F2A-KM4"}' > /dev/null
           kill $SERVER_PID

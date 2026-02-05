@@ -9,7 +9,7 @@ const os = require('os');
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || '0.0.0.0';
-const ACCESS_CODE = process.env.ACCESS_CODE || 'estacionkusmedios';
+const ACCESS_CODE = process.env.ACCESS_CODE || 'ESTKUS-2026-PRIV-9X7F2A-KM4';
 
 function normalizeAccessCode(value) {
     return String(value || '').trim().toLowerCase();

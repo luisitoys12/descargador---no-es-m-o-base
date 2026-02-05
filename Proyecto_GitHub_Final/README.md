@@ -3,14 +3,14 @@
 Descargador privado (audio MP3 + video MP4) con interfaz web profesional y control de acceso por código.
 
 ## Acceso privado
-- Código por defecto: `estacionkusmedios`
+- Código por defecto: `ESTKUS-2026-PRIV-9X7F2A-KM4`
 - Recomendado en producción: configurar `ACCESS_CODE` como secreto/variable de entorno.
 
 ## Ejecutar local en modo web
 ```bash
 cd Proyecto_GitHub_Final
 npm install
-ACCESS_CODE=estacionkusmedios APP_RUNTIME=web npm run start:web
+ACCESS_CODE=ESTKUS-2026-PRIV-9X7F2A-KM4 APP_RUNTIME=web npm run start:web
 ```
 Abrir: `http://localhost:3000`
 
